@@ -1,0 +1,89 @@
+\documentclass{scrartcl}
+
+\title{NetLion}
+
+\author{Joshua Rahm}
+\date{\today}
+
+\pagestyle{headings}
+
+\begin{document}
+\maketitle
+\newpage
+
+\newcommand{\newsection}[1]{
+	\section{#1}
+	\vspace{3mm}
+	\hrule
+	\vspace{3mm}
+}
+
+\newsection{Introduction}
+
+Tools that allow developers to communicate are extremely powerful, especially when what
+is required for communication is a verbatim copy of files, code or otherwise raw data
+between two or more machines. Currently, there exist few tools that enable this kind
+of predictable behavior, and that is what NetLion attempts to resolve.
+
+\newsection{What is NetLion?}
+
+As is apparent from the name, NetLion is related to the ``Swiss Army Knife'' netcat, which
+it is. NetLion looks to replace netcat specifically for raw data sharing.
+
+Netcat is designed to simply read from a port directly, which is useful for a number of things
+including sharing raw data between two computers. This functionality is great, and I have
+used netcat for this purpose many times before. E.g.
+
+On server computer
+\begin{verbatim}
+cat myfile.txt | nc -l -p 54321
+\end{verbatim}
+
+On client computer
+\begin{verbatim}
+nc <ip of server> 54321 > myfile.txt
+\end{verbatim}
+
+This approach is great because the elegance is uncanning. It is quite nicer than
+putting a file on a central server for download or copying a file over (as that will
+require login credentials). In addition, using netcat to transfer data does not
+just limit the user to files. For example, using netcat to stream files across computers
+is easy.
+
+Server
+\begin{verbatim}
+tar -c mydir/ | gzip | nc -l -p 54321
+\end{verbatim}
+
+Client
+\begin{verbatim}
+nc <ip of server> 54321 | tar -xzv
+\end{verbatim}
+
+this is a fast way to copy a directory across the Internet, this would not
+be doable to the same degree across standard file transfer.
+
+A final example of how netcat is more versatile than standard files is that
+it is able to mutate data in a streaming fashion using bash standard piping
+methods.
+
+
+Server
+\begin{verbatim}
+cat really_big_sql_file.sql | gzip | nc -l -p 54321
+\end{verbatim}
+
+Client
+\begin{verbatim}
+nc <ip of server> 54321 | gunzip | grep John | grep Doe | sed 's/Doe/Alfred/g'
+	| awk '{print "INSERT INTO customers VALUES("$1 ", " $4 ");"}' | mysql -u root -p
+\end{verbatim}
+
+Understanding what this code is doing is not important; the point is that netcat
+is an extremely powerful tool to use for transferring raw data over a network.
+
+\subsection{What's the Problem With Netcat?}
+
+
+
+\end{document}
