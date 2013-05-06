@@ -56,34 +56,50 @@ module Main where
 
 			
 
-	readPackets :: Handle -> Server -> IO ()
-	readPackets handle server@(Server _ m _) =
+	readPackets :: Maybe ClientId -> Handle -> Server -> IO ()
+	readPackets clid handle server@(Server _ m _) =
 
 		let readPacketChunk :: Get BS.ByteString ; readPacketChunk =
 			getWord32be >>= getByteString . fromIntegral
 		in
 
-		let runPackets mvar handle = do
-			chunk <- (BSL.hGetContents handle) >>= return . (runGet readPacketChunk)
+		let runPackets clid mvar handle = do
+			eof <- hIsEOF handle
+			if eof then do
+				putStrLn "EOF Detected, attempting to logout user"
+				case clid of
+					Just c -> putMVar mvar (serverRemoveClientIO c)
+					Nothing -> return ()
+			else do
+				chunk <- (BSL.hGetContents handle) >>= return . (runGet readPacketChunk)
+	
+				case (S.decode chunk) of
+					Right (PacketResult _ (Success packet@(ReqConnect neclid))) -> do
+						putMVar mvar (getPacketAction handle packet)
+						runPackets (Just neclid) mvar handle
+					Right (PacketResult _ (Success packet)) -> do
+						putMVar mvar (getPacketAction handle packet)
+						runPackets clid mvar handle
+					Left _ ->
+						runPackets clid mvar handle
 
-			case (S.decode chunk) of
-				Right (PacketResult _ (Success packet)) -> do
-					putMVar mvar (getPacketAction handle packet)
-					runPackets mvar handle
-				Left _ ->
-					runPackets mvar handle
+		in runPackets clid m handle
 
-		in runPackets m handle
-
-	serverAccept :: Server -> IO ThreadId
+	serverAccept :: Server -> IO ()
 	serverAccept server@(Server _ _ (ServerConnectionData sock _)) =
-		(accept sock) >>= (\(handle,_,_) ->
-				forkIO $ readPackets handle server )
+		(accept sock) >>= (\(handle,_,_) -> do
+				putStrLn "Accepted connect, running . . ."
+				forkIO $ readPackets Nothing handle server
+				serverAccept server )
 	
 	main = do
 		serverSock <- listenOn $ PortNumber 5434
 		server <- initServer serverSock 5434
 
+		putStrLn "Started server listening on port 5434"
+		putStrLn "Forking runServer"
+
 		threadId <- forkIO (runServer server >>= (\_ -> return ()))
+		serverAccept server
 		return ()
 
