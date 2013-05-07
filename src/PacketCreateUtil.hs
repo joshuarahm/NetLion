@@ -26,25 +26,7 @@ module Main where
 			("logout",LogoutType),
 			("logoutack",LogoutAckType),
 			("data",DataPacketType) ];
-	-- -t bcast --from josh --to nic zach --data "Hello There People"
-	-- -t connect --from josh
-	splitList :: (a -> Bool) -> [a] -> [[a]]
-	splitList func list =
-		case break func list of
-			(la,[]) -> [la]
-			(la,(a:as)) -> case (splitList func as) of
-				(b:bs) -> la : (a:b) : bs
-				l -> (la ++ [a]) : l
 
-	parseArgs :: [String] -> Map.Map String [String]
-	parseArgs args =
-		let spltlist = filter (not . null) $ splitList (isPrefixOf "-") args in
-		trace ("spltlist=" ++ (show spltlist)) $
-		foldl (\acc e ->
-			case e of
-				(a:as) -> Map.insert (tail a) as acc
-				_ -> acc ) Map.empty spltlist
-	
 	packetTypeFromString :: String -> Result PacketType
 	packetTypeFromString str =
 		case Map.lookup str packetTypeMap of
@@ -60,17 +42,6 @@ module Main where
 					_ -> Fail $ "Only one packet type allowed! " ++ (show x)
 			Nothing -> Fail $ "No packet type specified"
 			
-	grab :: String -> Map.Map String [String] -> Result [String] ;
-	grab str m = case Map.lookup str m of
-		Just a -> return a
-		Nothing -> Fail $ "Missing argument " ++ str
-
-	grabOne :: String -> Map.Map String [String] -> Result String ;
-	grabOne str m = case Map.lookup str m of
-		Just a -> case a of
-			(a:[]) -> return a
-			_ -> Fail $ "One argument expected for " ++ str
-		Nothing -> Fail $ "Missing argument " ++ str
 
 	getByteString :: PacketType -> Map.Map String [String] -> Result BS.ByteString
 	getByteString typ@(PingPacketType) _ =

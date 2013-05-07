@@ -4,7 +4,7 @@
 module NetLion.Packets.Parser where
 	import NetLion.Server
 	import NetLion.Common as C
-	import NetLion.Server.Actions
+--	import NetLion.Server.Actions
 	import NetLion.Packets
 	import Debug.Trace
 
@@ -153,6 +153,21 @@ module NetLion.Packets.Parser where
 						C.Fail s -> return (C.Fail s)
 						Success frm -> return $ Success $ DataPacket frm bytes
 
+				ReadPacketType -> do
+					from <- getIdentifier
+					follow <- getWord8 >>= return . (/=0)
+
+					case from of
+						C.Fail s -> return (C.Fail s)
+						Success "" -> return $ Success $ ReadPacket Nothing follow
+						Success str -> return $ Success $ ReadPacket (Just str) follow
+
+				WritePacketType -> do
+					to <- getIdentifiers
+					
+					case to of
+						C.Fail s -> return $ C.Fail s
+						Success lst -> return $ Success $ WritePacket lst
 
 				{- If something else, return a not implemented
 					error -}

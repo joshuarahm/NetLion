@@ -20,6 +20,8 @@ module Main where
 	import System.IO
 	import Debug.Trace
 
+	import System.Environment
+
 	{- todo un-hardcode this -}
 	socketPath :: String
 	socketPath = "/tmp/NetLion.sock"
@@ -30,15 +32,6 @@ module Main where
 	maxBacklog :: (Integral a) => a
 	maxBacklog = 1024
 
-	readPacketFromHandle :: Handle -> IO PacketResult
-	readPacketFromHandle handle =
-		let readPacketChunk :: Get BS.ByteString ; readPacketChunk =
-			getWord32be >>= getByteString . fromIntegral
-		in do
-		chunk <- (BSL.hGetContents handle) >>= return . (runGet readPacketChunk)
-		case (S.decode chunk) of
-			Right pr -> return pr
-			Left err -> error err
 
 	data Backlog = Backlog (MVar ( Map.Map String (BoundedChan BS.ByteString ))) (BoundedChan Packet) String
 
@@ -51,7 +44,7 @@ module Main where
 
 	appendToBacklog :: String -> BS.ByteString -> Backlog -> IO ()
 	appendToBacklog clid dat (Backlog mvar _ _) =
-		trace ("Appending data to backlog") $
+		trace ("Appending data to backlog: clid=" ++ clid ++ " dat=" ++ (show dat)) $
 
 		{- To append to the backlog, we need
 			to modify the mutable variable for the Map -}
@@ -80,7 +73,7 @@ module Main where
 	readFromServer handleToServer backlog = 
 		trace "Reading data from server . . ." $ do
 		{- Read a packet result from the server -}
-		packetr <- readPacketFromHandle handleToServer
+		packetr <- readPacket handleToServer
 
 		case packetr of
 			{- If the packet result is a data packet -}
@@ -95,7 +88,8 @@ module Main where
 	writeToServer handleToServer (Backlog _ buf _) =
 		trace "Writing to server . . ." $ do
 		packet <- readChan buf
-		BS.hPutStr handleToServer (S.encode (packetToPacketResult packet))
+		trace ("Forwarding packet " ++ (show packet)) $
+			writePacket handleToServer packet
 
 	backlogGetChan :: String -> Backlog -> IO (Maybe (BoundedChan BS.ByteString))
 	backlogGetChan clid (Backlog mvar _ _ ) =
@@ -103,23 +97,38 @@ module Main where
 
 	dumpChannelUntil :: (BS.ByteString -> Bool) -> BoundedChan BS.ByteString-> Handle -> IO ()
 	dumpChannelUntil cond chan handle = do
-		bs <- readChan chan
-		iseof <- hIsEOF handle
-		if (cond bs) || iseof then return ()
-		else BS.hPutStr handle bs
+		putStrLn $ "Trying to figure out if handle is closed"
+		iseof <- hIsClosed handle
+		putStrLn $ "Handle closed? " ++ (show iseof)
+		isempty <- isEmptyChan chan
+		if iseof || isempty then trace "Handle is EOF!" $ return ()
+		else do
+			putStrLn $ "Reading channel"
+			bs <- readChan chan
+			putStrLn $ "Read ByteString " ++ (show bs) ++ " from channel"
+			if (cond bs) then return ()
+			else do
+				BS.hPutStr handle bs
+				dumpChannelUntil cond chan handle
 
-	handleReadReq :: String -> Handle -> Backlog -> IO ()
-	handleReadReq clid handle bl = do
+	handleReadReq :: String -> Handle -> Backlog -> Bool -> IO ()
+	handleReadReq clid handle bl follow = do
 		maychan <- backlogGetChan clid bl
 		case maychan of
 			-- dump a channel until the length of a bytestring is 0
-			Just chan -> dumpChannelUntil (((==) 0) . BS.length) chan handle
+			Just chan -> do
+				putStrLn "Dumping channel to handle"
+				dumpChannelUntil (\_ -> False) chan handle
+				putStrLn "Condition met, finishing"
 			Nothing -> return ()
 
 	handleWriteReq :: [String] -> Handle -> Backlog -> IO ()
-	handleWriteReq clients handle bl@(Backlog _ buf name) = do
+	handleWriteReq clients handle bl@(Backlog _ buf name) = 
+		trace "Handling write request" $ do
 		bytes <- BS.hGetSome handle blockSize
-		writeChan buf (BroadcastPacket name clients bytes)
+		let packet = (BroadcastPacket name clients bytes)
+		trace ("writing packet " ++ (show packet)) $
+			writeChan buf packet
 		if BS.length bytes == 0 then return ()
 		else handleWriteReq clients handle bl
 
@@ -127,14 +136,15 @@ module Main where
 		if the client is reading, send it a torrent of data packets, if its
 		writing, then block up the input into broadcast packets -}
 	acceptConnect :: Socket -> Backlog -> IO ()
-	acceptConnect sock bl = do
+	acceptConnect sock bl =
+		trace "accepted connection" $ do
 		(clihandle,hostname,portnum) <- accept sock
-		packet <- readPacketFromHandle clihandle
+		packet <- readPacket clihandle
 
 		case packet of
 			-- todo add support for global packet container
-			(PacketResult _ (Success (ReadPacket maybecli))) ->
-				handleReadReq (fromMaybe "" maybecli) clihandle bl
+			(PacketResult _ (Success (ReadPacket maybecli follow ))) ->
+				handleReadReq (fromMaybe "" maybecli) clihandle bl follow
 
 			(PacketResult _ (Success (WritePacket clients))) ->
 				handleWriteReq clients clihandle bl
@@ -142,12 +152,27 @@ module Main where
 			_ -> error "Invalid packet"
 			
 	main = withSocketsDo $ do
-		{- todo unhardcode these things -}
-		serverSock <- listenOn $ UnixSocket socketPath
-		handleToServer <- connectTo "localhost" (PortNumber 5434)
-		backlog <- newBacklog "jrahm"
+		argmap <- getArgs >>= return . parseArgs
 
-		forkIO $ forever $ readFromServer handleToServer backlog
-		forkIO $ forever $ writeToServer handleToServer backlog
+		case grabOneWithDefaults argmap
+			[("user", Nothing),("host",Just "localhost"),
+				("port",Just "5434"),("sock",Just socketPath)] of
 
-		forever $ acceptConnect serverSock backlog
+			Success args -> do
+				let user = args !! 0
+				let host = args !! 1
+				let port = (read $ args !! 2) :: Integer
+				let sock = args !! 3
+
+				serverSock <- listenOn $ UnixSocket sock
+				handleToServer <- connectTo host (PortNumber $ fromIntegral port)
+				backlog <- newBacklog user
+		
+				writePacket handleToServer (ReqConnect user)
+		
+				forkIO $ forever $ readFromServer handleToServer backlog
+				forkIO $ forever $ writeToServer handleToServer backlog
+		
+				forever $ acceptConnect serverSock backlog
+
+			Fail reason -> error reason

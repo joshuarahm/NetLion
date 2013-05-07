@@ -5,6 +5,7 @@ module NetLion.Packets.Writer where
 	import NetLion.Packets
 
 	import Data.Serialize.Put
+	import Data.Maybe
 
 	import qualified Data.String as String
 	import qualified Data.ByteString.Lazy as BSL
@@ -96,6 +97,20 @@ module NetLion.Packets.Writer where
 		putWord32be . fromIntegral $ BS.length bs
 		putByteString bs
 
+	serializePacketPut (ReadPacket clid follow) =
+		let realclid = case clid of
+			(Just str) -> str
+			Nothing -> "" in do
+		serializePacketHeader (PacketHeader ReadPacketType 0)
+		serializeString realclid
+		putWord8 . fromIntegral $ (if follow then 1 else 0)
 
+	serializePacketPut (WritePacket tos) = do
+		-- todo: an  irritating amount of code redundnacy
+		let serializeClientList lst =
+			putByteString $ BS.concat . map ( ((flip BS.snoc) 0) . String.fromString ) $ lst
 
-
+		serializePacketHeader (PacketHeader WritePacketType 0)
+		serialList <- (return $ runPut $ serializeClientList tos)
+		putWord32be . fromIntegral $ BS.length serialList
+		putByteString serialList

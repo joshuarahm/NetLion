@@ -23,7 +23,12 @@ module NetLion.Packets where
 
 		Logout ClientId |
 		LogoutAck | 
-		DataPacket ClientId Datagram deriving Show
+		DataPacket ClientId Datagram |
+
+		-- these guys should probably be separate since they
+		-- are a part of the intermediate protocol
+		ReadPacket (Maybe ClientId) Bool |
+		WritePacket [ClientId] deriving Show
 	
 	
 	data PacketType =
@@ -35,7 +40,10 @@ module NetLion.Packets where
 		BroadcastPacketAckType |
 		LogoutType |
 		LogoutAckType |
-		DataPacketType deriving Show
+		DataPacketType |
+		ReadPacketType |
+		WritePacketType  
+		deriving Show
 	
 	instance Enum PacketType where
 		fromEnum PingPacketType				= 0
@@ -47,18 +55,22 @@ module NetLion.Packets where
 		fromEnum LogoutType 				= 6
 		fromEnum LogoutAckType 				= 7
 		fromEnum DataPacketType 			= 8
-	
+		fromEnum ReadPacketType 			= 9
+		fromEnum WritePacketType 			= 10
+
 		toEnum val =
-			case (val `mod` 9) of
-				0 -> PingPacketType
-				1 -> PingAckType
-				2 -> ReqConnectType
-				3 -> ReqConnectAckType
-				4 -> BroadcastPacketType
-				5 -> BroadcastPacketAckType
-				6 -> LogoutType
-				7 -> LogoutAckType
-				8 -> DataPacketType
+			case (val `mod` 11) of
+				0  -> PingPacketType
+				1  -> PingAckType
+				2  -> ReqConnectType
+				3  -> ReqConnectAckType
+				4  -> BroadcastPacketType
+				5  -> BroadcastPacketAckType
+				6  -> LogoutType
+				7  -> LogoutAckType
+				8  -> DataPacketType
+				9  -> ReadPacketType
+				10 -> WritePacketType
 				-- it would make no sense mathematically to
 				-- get to this point
 				_ -> PingPacketType
@@ -87,3 +99,11 @@ module NetLion.Packets where
 
 	getPacketType (Logout  _) = LogoutType
 	getPacketType LogoutAck = LogoutAckType
+
+	getPacketType (DataPacket _ _) = DataPacketType
+	getPacketType (ReadPacket _ _) = ReadPacketType
+	getPacketType (WritePacket _) = WritePacketType
+
+	packetToPacketResult :: Packet -> PacketResult
+	packetToPacketResult packet =
+		(PacketResult (PacketHeader (getPacketType packet) 0) (Success packet) )
