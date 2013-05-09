@@ -1,3 +1,11 @@
+{- This executable is the daemon. Its job is to maintain a continuous
+	connection to the server and sort through the i=nformation it
+	recieves back.
+
+	The daemon holds in its data structures a queue for each user
+	that has tried to contact it. For example, it X sends a message m
+	to Y, Y's daemon will store m in the queue mapped to X for later
+	retrieval. -}
 module Main where
 	import NetLion.Common
 	import NetLion.Packets
@@ -22,21 +30,39 @@ module Main where
 
 	import System.Environment
 
-	{- todo un-hardcode this -}
+	{- Some default values -}
+	
+	{- The path to the UNIX socket
+		to listen on -}
 	socketPath :: String
 	socketPath = "/tmp/NetLion.sock"
 
+	{- The block size to write to the server
+		when the torrent of bit's comes streaming
+		in -}
 	blockSize :: (Integral a) => a
 	blockSize = 1024
 
+	{- The maximum number of data packets to
+		retain in a user's queue without
+		blocking. This is set to a megabyte per
+		user -}
 	maxBacklog :: (Integral a) => a
 	maxBacklog = 1024
 
 
-	data Backlog = Backlog (MVar ( Map.Map String (BoundedChan BS.ByteString ))) (BoundedChan Packet) String
+	{- A mutable data structure that holds the queue's for
+		each contact as well as a queue to post information
+		to the server on and a user name to register to the
+		server with -}
+	data Backlog = Backlog
+		(MVar ( Map.Map String (BoundedChan BS.ByteString )))
+		(BoundedChan Packet) String
 
+	{- Creates a new Backlog with a username -}
 	newBacklog :: String -> IO Backlog
 	newBacklog name = do
+		-- create new mutable variables
 		mvar <- newMVar Map.empty
 		-- this is for the server writes
 		bc <- newBoundedChan maxBacklog

@@ -28,7 +28,7 @@ module NetLion.Packets.Serialize where
 		let bytes = S.encode (packetToPacketResult packet)
 		BS.hPutStr handle $ __2byteheader
 		BS.hPutStr handle $ S.runPut (S.putWord32be . fromIntegral $ BS.length bytes)
-		putStrLn $ "Writing bytes: " ++ (show bytes) ++ " length: " ++ (show $ BS.length bytes) 
+--		putStrLn $ "Writing bytes: " ++ (show bytes) ++ " length: " ++ (show $ BS.length bytes) 
 		BS.hPutStr handle $ bytes
 		hFlush handle
 	
@@ -42,9 +42,9 @@ module NetLion.Packets.Serialize where
 				eithersize <- (BS.hGetSome handle 4) >>= return . (S.runGet S.getWord32be)
 				case eithersize of
 					Right size -> do
-						putStrLn $ "Tring to read " ++ (show size) ++ " bytes."
+						--putStrLn $ "Tring to read " ++ (show size) ++ " bytes."
 						chunk <- BS.hGetSome handle (fromIntegral size)
-						putStrLn $ "Read chunk: " ++ (show chunk)
+						--putStrLn $ "Read chunk: " ++ (show chunk)
 						case (S.decode chunk) of
 							Right pr -> return pr
 							Left err -> error err

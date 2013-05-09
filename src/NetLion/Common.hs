@@ -23,11 +23,15 @@ module NetLion.Common where
 		(Fail x) >>= _ = (Fail x)
 		return = Success
 
+	{- Does a quick conversion of ByteString to
+		String -}
 	byteStringToString :: BS.ByteString -> String
 	byteStringToString bytestring =
 		let unpack = BS.unpack bytestring in
 			map (\e -> chr $ fromIntegral e) unpack
 
+	{- Simply parses arguments from the command line by
+		grouping arguments of a switch -}
 	parseArgs :: [String] -> Map.Map String [String]
 	parseArgs args =
 		let spltlist = filter (not . null) $ splitList (isPrefixOf "-") args in
