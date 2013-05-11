@@ -93,13 +93,20 @@ module Main where
 					(PacketResult _ (Success packet@(ReqConnect neclid))) -> do
 						{- if the packet is a reqconnect packet, add it to the server -}
 						putMVar mvar (getPacketAction handle packet)
+
+						{- recursively run the packets again -}
 						runPackets (Just neclid) mvar handle
 					(PacketResult _ (Success packet)) -> do
+						{- Put the action on the queue for the server
+							to edit -}
 						putMVar mvar (getPacketAction handle packet)
 						runPackets clid mvar handle
 
+		-- start the main loop
 		in runPackets clid m handle
 
+	{- This routine forever accepts a connection and
+		forks a new thread to run that process in the background -}
 	serverAccept :: Server -> IO ()
 	serverAccept server@(Server _ _ (ServerConnectionData sock _)) =
 		(accept sock) >>= (\(handle,_,_) -> do
@@ -110,13 +117,19 @@ module Main where
 				serverAccept server )
 	
 	main = do
+		-- start a connection listenting on port 5434 (The default port)
+		-- todo -- unhard code this
 		serverSock <- listenOn $ PortNumber 5434
 		server <- initServer serverSock 5434
 
+		-- print out some info
 		putStrLn "Started server listening on port 5434"
 		putStrLn "Forking runServer"
 
+		-- fork a new process that deals with maintaining the server
 		threadId <- forkIO (runServer server >>= (\_ -> return ()))
+
+		-- start accepting client connections
 		serverAccept server
 		return ()
 

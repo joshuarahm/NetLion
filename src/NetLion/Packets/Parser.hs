@@ -163,9 +163,12 @@ module NetLion.Packets.Parser where
 						Success str -> return $ Success $ ReadPacket (Just str) follow
 
 				WritePacketType -> do
+					{- Get the list of people to send the information
+						to -}
 					to <- getIdentifiers
 					
 					case to of
+						{- Make sure the identifiers are valid -}
 						C.Fail s -> return $ C.Fail s
 						Success lst -> return $ Success $ WritePacket lst
 

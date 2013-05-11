@@ -18,6 +18,7 @@ module NetLion.Common where
 	type FailureData = String
 	data Result a = Success a | Fail FailureData deriving Show
 
+	{- Result should be a monadic type. -}
 	instance Monad Result where
 		(Success x) >>= func = func x
 		(Fail x) >>= _ = (Fail x)
