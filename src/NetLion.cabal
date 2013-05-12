@@ -1,0 +1,40 @@
+Name:            NetLion
+Version:        0.5.11
+Description:    Read and write to users connected to a central server
+License:        GPL
+License-file:    LICENSE
+Author:            Josh Rahm
+Maintainer:        joshua.rahm@colorado.edu
+Build-Type:        Simple
+Cabal-Version:    >=1.2
+
+Executable nlc
+    GHC-Options:    -Wall
+    extensions:    DoAndIfThenElse
+    Main-is:        Client.hs
+    Build-Depends:    base >= 3,
+        network >= 2.4,
+        bytestring >= 0.10,
+        cereal >= 0.3,
+        containers >= 0.5
+
+Executable nlsd
+    GHC-Options:    -Wall
+    extensions:    DoAndIfThenElse
+    Main-is:        Main.hs
+    Build-Depends:    base >= 3,
+        network >= 2.4,
+        bytestring >= 0.10,
+        cereal >= 0.3,
+        containers >= 0.5,
+        BoundedChan >= 1.0
+
+Executable nlcd
+    GHC-Options:    -Wall
+    extensions:    DoAndIfThenElse
+    Main-is:        Daemon.hs
+    Build-Depends:    base >= 3,
+        network >= 2.4,
+        bytestring >= 0.10,
+        cereal >= 0.3,
+        containers >= 0.5
