@@ -12,10 +12,7 @@ module Main where
 	import System.IO
 	import Control.Concurrent
 
-	import qualified Data.ByteString.Lazy as BSL
-	import qualified Data.ByteString as BS
-	import Data.Binary.Get
-	import qualified Data.Serialize as S
+	import System.Environment (getArgs)
 
 	{- Returns an action to modify the server based
 		on the packets recieved -}
@@ -73,34 +70,37 @@ module Main where
 		a reqConnect data packet to assign a client
 		id to the connection -}
 	readPackets :: Maybe ClientId -> Handle -> Server -> IO ()
-	readPackets clid handle server@(Server _ m _) =
-		let runPackets clid mvar handle = do
+	readPackets clid handle (Server _ m _) =
+		let runPackets clientid mvar clihandle = do
 			putStrLn "Still running packets ..."
 			{- If there's and EOF, we need to handle it by removing the
 				client from the server and continuing -}
-			eof <- hIsEOF handle
+			eof <- hIsEOF clihandle
 			if eof then do
 				putStrLn "EOF Detected, attempting to logout user"
-				case clid of
+				case clientid of
 					{- If the client ID is specified, we need to
 						log out the user -}
 					Just c -> putMVar mvar (serverRemoveClientIO c)
 					Nothing -> return ()
 			else do
 				{- Read a packet from the client -}
-				packet <- readPacket handle
+				packet <- readPacket clihandle
 				case packet of
-					(PacketResult _ (Success packet@(ReqConnect neclid))) -> do
+					(PacketResult _ (Success rpacket@(ReqConnect neclid))) -> do
 						{- if the packet is a reqconnect packet, add it to the server -}
-						putMVar mvar (getPacketAction handle packet)
+						putMVar mvar (getPacketAction clihandle rpacket)
 
 						{- recursively run the packets again -}
-						runPackets (Just neclid) mvar handle
-					(PacketResult _ (Success packet)) -> do
+						runPackets (Just neclid) mvar clihandle
+					(PacketResult _ (Success rpacket)) -> do
 						{- Put the action on the queue for the server
 							to edit -}
-						putMVar mvar (getPacketAction handle packet)
-						runPackets clid mvar handle
+						putMVar mvar (getPacketAction clihandle rpacket)
+						runPackets clientid mvar clihandle
+
+					(PacketResult _ (Fail reason)) -> do
+						hPutStr stderr reason
 
 		-- start the main loop
 		in runPackets clid m handle
@@ -116,20 +116,30 @@ module Main where
 				_ <- forkIO $ readPackets Nothing handle server
 				serverAccept server )
 	
+	main :: IO ()
 	main = do
-		-- start a connection listenting on port 5434 (The default port)
-		-- todo -- unhard code this
-		serverSock <- listenOn $ PortNumber 5434
-		server <- initServer serverSock 5434
+		argmap <- getArgs >>= return . parseArgs
+		let margs = grabOneWithDefaults argmap [("port", Just "5434")]
 
-		-- print out some info
-		putStrLn "Started server listening on port 5434"
-		putStrLn "Forking runServer"
+		case margs of
+			Success args -> do
+				let portnu = fromIntegral (read (args !! 0) :: Integer)
+				
+				-- start a connection listenting on port 5434 (The default port)
+				-- todo -- unhard code this
+				serverSock <- listenOn $ (PortNumber portnu)
+				server <- initServer serverSock portnu
+		
+				-- print out some info
+				putStrLn $ "Started server listening on port " ++ (show portnu)
+				putStrLn "Forking runServer"
+		
+				-- fork a new process that deals with maintaining the server
+				_ <- forkIO (runServer server >>= (\_ -> return ()))
+		
+				-- start accepting client connections
+				serverAccept server
+				return ()
 
-		-- fork a new process that deals with maintaining the server
-		threadId <- forkIO (runServer server >>= (\_ -> return ()))
-
-		-- start accepting client connections
-		serverAccept server
-		return ()
+			Fail s -> error s
 

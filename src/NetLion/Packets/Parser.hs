@@ -2,11 +2,8 @@
 	for parsing ByteStrings into readable packets for
 	NetLion -}
 module NetLion.Packets.Parser where
-	import NetLion.Server
 	import NetLion.Common as C
---	import NetLion.Server.Actions
 	import NetLion.Packets
-	import Debug.Trace
 
 	import qualified Data.Char as Char
 	import qualified Data.ByteString.Lazy as BSL
@@ -114,7 +111,7 @@ module NetLion.Packets.Parser where
 				{- For the ReqConnect packet, there is a little
 					more information needed. We need to grab an identifier -}
 				ReqConnectType -> getIdentifier >>=
-						(\id -> return $ id >>= Success . ReqConnect)
+						(\ident -> return $ ident >>= Success . ReqConnect)
 
 				{- For a ReqConnectAck packet, all there is
 					to grab is a 32-bit integer. -}
@@ -188,7 +185,7 @@ module NetLion.Packets.Parser where
 				(PacketHeader typ 0) ->
 					{- Deconstruct and return the new packet -}
 					(readPacketFromType typ) >>= return . (PacketResult header)
-				(PacketHeader typ s) -> return $ PacketResult header (C.Fail $ "Non-zero status: " ++ (show s))
+				(PacketHeader _ s) -> return $ PacketResult header (C.Fail $ "Non-zero status: " ++ (show s))
 
 
 	packetFromByteString :: BS.ByteString -> C.Result Packet
@@ -196,5 +193,5 @@ module NetLion.Packets.Parser where
 		{- Run the Get to grab the packet
 			from the ByteString -}
 		case (runGet parsePacketGet datagram) of
-			Right (PacketResult header packet) -> packet
+			Right (PacketResult _ packet) -> packet
 			Left str -> C.Fail str

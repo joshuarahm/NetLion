@@ -5,11 +5,8 @@ module NetLion.Packets.Serialize where
 	import NetLion.Packets.Parser
 
 	import System.IO
-	import Debug.Trace
-
 	import qualified Data.Serialize as S
 	import qualified Data.ByteString as BS
-	import qualified Data.ByteString.Lazy as BSL
 
 	__2byteheader :: BS.ByteString
 	__2byteheader = BS.pack [0xAF,0xFF]

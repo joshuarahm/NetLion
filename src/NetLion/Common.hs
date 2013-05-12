@@ -1,7 +1,6 @@
 module NetLion.Common where
 	import qualified Data.ByteString as BS
 	import Data.Char
-	import Control.Monad
 	import qualified Data.Map as Map
 	import Debug.Trace
 	import Data.List
@@ -12,7 +11,7 @@ module NetLion.Common where
 	forAll [] def _ = return def
 
 	forAllWithLast :: Monad m => [t] -> a -> (a -> b) -> (t -> a -> m a) -> m b
-	forAllWithLast (x:xs) fst def f = (f x fst) >>= (\ l -> forAllWithLast xs l def f )
+	forAllWithLast (x:xs) first def f = (f x first) >>= (\ l -> forAllWithLast xs l def f )
 	forAllWithLast [] l def _ = return (def l)
 	
 	type FailureData = String
@@ -67,7 +66,7 @@ module NetLion.Common where
 	grabOne :: String -> Map.Map String [String] -> Result String ;
 	grabOne str m = case Map.lookup str m of
 		Just a -> case a of
-			(a:[]) -> return a
+			(a':[]) -> return a'
 			_ -> Fail $ "One argument expected for " ++ str
 		Nothing -> Fail $ "Missing argument " ++ str
 

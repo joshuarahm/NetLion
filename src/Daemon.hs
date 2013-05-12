@@ -18,11 +18,8 @@ module Main where
 	import Control.Concurrent.MVar
 	import Control.Monad
 
-	import qualified Data.ByteString.Lazy as BSL
 	import qualified Data.ByteString as BS
-	import qualified Data.Serialize as S
 	import Data.Maybe
-	import Data.Binary.Get
 
 	import qualified Data.Map as Map
 	import System.IO
@@ -111,6 +108,7 @@ module Main where
 
 			_ -> error "Incorrect paket type. Expected data packet"
 
+	writeToServer :: Handle -> Backlog -> IO ()
 	writeToServer handleToServer (Backlog _ buf _) =
 		trace "Writing to server . . ." $ do
 		packet <- readChan buf
@@ -138,7 +136,7 @@ module Main where
 				dumpChannelUntil cond chan handle
 
 	handleReadReq :: String -> Handle -> Backlog -> Bool -> IO ()
-	handleReadReq clid handle bl follow = do
+	handleReadReq clid handle bl _ = do
 		maychan <- backlogGetChan clid bl
 		case maychan of
 			-- dump a channel until the length of a bytestring is 0
@@ -164,7 +162,7 @@ module Main where
 	acceptConnect :: Socket -> Backlog -> IO ()
 	acceptConnect sock bl =
 		trace "accepted connection" $ do
-		(clihandle,hostname,portnum) <- accept sock
+		(clihandle,_,_) <- accept sock
 		packet <- readPacket clihandle
 
 		case packet of
@@ -177,6 +175,20 @@ module Main where
 
 			_ -> error "Invalid packet"
 			
+	useageString :: String
+	useageString =
+		"NetLion Client Daemon" ++
+		"\n nlcd -user userid [-host hostid] [-port port] [-sock socket]" ++
+		"\n\n -user userid" ++
+		"\n  mandatory argument, speicfies what user to connect as" ++
+		"\n -host hostid" ++
+		"\n  Specifies the host to listent to; defaults to localhost" ++
+		"\n -port port" ++
+		"\n  Specifies the port to listen to; defaults to 5434" ++
+		"\n -sock socket" ++
+		"\n  socket to listen for clients on; defaults to " ++ socketPath
+
+	main :: IO ()
 	main = withSocketsDo $ do
 		argmap <- getArgs >>= return . parseArgs
 
@@ -196,9 +208,9 @@ module Main where
 		
 				writePacket handleToServer (ReqConnect user)
 		
-				forkIO $ forever $ readFromServer handleToServer backlog
-				forkIO $ forever $ writeToServer handleToServer backlog
+				_ <- forkIO $ forever $ readFromServer handleToServer backlog
+				_ <- forkIO $ forever $ writeToServer handleToServer backlog
 		
 				forever $ acceptConnect serverSock backlog
 
-			Fail reason -> error reason
+			Fail reason -> error $ reason ++ "\n" ++ useageString

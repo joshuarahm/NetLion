@@ -18,6 +18,7 @@ module Main where
 
 	{- Redirects all information read from the first handle
 		and redirects it to the second handle -}
+	writeAll :: Handle -> Handle -> IO ()
 	writeAll h1 h2 = do
 		
 		{- Check to see if the handle is
@@ -76,8 +77,20 @@ module Main where
 			stdout -}
 		writeAll handle stdout
 		hFlush stdout
+
+	useageString :: String
+	useageString =
+		"NetLion Client " ++
+		"\n nlc [-to [userid ...] | -from userid] [-follow]" ++
+		"\n\n -to [userid]" ++
+		"\n  set the mode to send data to the user(s) in the userid list" ++
+		"\n -from userid" ++
+		"\n  set this client in read mode and get information from a user" ++
+		"\n --follow" ++
+		"\n  if the client is in read mode, do not exit when buffer is empty; wait for more data"
+
 		
-	
+	main :: IO ()
 	main = withSocketsDo $ do
 		{- parse the argument map -}
 		argmap <- getArgs >>= return . parseArgs
@@ -93,7 +106,7 @@ module Main where
 			{- Try to grab to or from arguments from lsit -}
 			case (grab "to" argmap, grabOne "from" argmap) of
 				{- There must be one or the other -}
-				(Fail _, Fail _) -> Fail "Missing either to or from arguments!"
+				(Fail _, Fail _) -> Fail $ "Missing either to or from arguments!" ++ useageString
 
 				{- Handle the case for one existing -}
 				(Success s, Fail _) -> Success (spath, Just s, Nothing, follow)
@@ -101,7 +114,7 @@ module Main where
 
 				{- May not have both swiches; this is a read xor write
 					program -}
-				_ -> Fail "May not have both -to and -from"
+				_ -> Fail $ "May not have both -to and -from\n" ++ useageString
 			
 		{- Match to see if the arguments are
 			all there -}
@@ -109,6 +122,7 @@ module Main where
 			{- Handle read and writes -}
 			Success (spath, Just tos, _, _) -> handleWrite spath tos
 			Success (spath, _, Just from, follow) -> handleRead spath from follow
+			Success (_, _, _, _) -> error "This should not have been activated!"
 
 			{- If the arguments didn't parse, fail and tell why -}
 			Fail reason -> error reason

@@ -4,10 +4,7 @@ module NetLion.Server.Actions where
 
 	import NetLion.Packets.Serialize
 	import NetLion.Packets
-	import Data.Serialize as S
 
-	import qualified Data.ByteString as BS
-	import qualified System.IO as IO
 
 	{- Add a client to the server -} 
 	serverAddClientIO :: Client -> Server -> IO Server
@@ -20,9 +17,9 @@ module NetLion.Server.Actions where
 
 	serverBroadcastDatagram :: ClientId -> Datagram -> [ClientId] -> Server -> IO Server
 	serverBroadcastDatagram from datagram clients server =
-		forAll clients server (\ id ->
-			case (serverGetClientById id server) of
-				Just (Client handle id) ->
+		forAll clients server (\ identity ->
+			case (serverGetClientById identity server) of
+				Just (Client handle _) ->
 					writePacket handle (DataPacket from datagram)
-				_ -> putStrLn $ "Can't forward to " ++ id ++ ", no such client"
+				_ -> putStrLn $ "Can't forward to " ++ identity ++ ", no such client"
 		)

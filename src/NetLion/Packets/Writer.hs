@@ -1,14 +1,10 @@
 module NetLion.Packets.Writer where
-	import NetLion.Server
-	import NetLion.Common
 
 	import NetLion.Packets
 
 	import Data.Serialize.Put
-	import Data.Maybe
 
 	import qualified Data.String as String
-	import qualified Data.ByteString.Lazy as BSL
 	import qualified Data.ByteString as BS
 
 	{- This function serializes a packet
@@ -103,7 +99,7 @@ module NetLion.Packets.Writer where
 			Nothing -> "" in do
 		serializePacketHeader (PacketHeader ReadPacketType 0)
 		serializeString realclid
-		putWord8 . fromIntegral $ (if follow then 1 else 0)
+		putWord8 $ (if follow then 1 else 0)
 
 	serializePacketPut (WritePacket tos) = do
 		-- todo: an  irritating amount of code redundnacy
