@@ -6,7 +6,25 @@ License-file:    LICENSE
 Author:            Josh Rahm
 Maintainer:        joshua.rahm@colorado.edu
 Build-Type:        Simple
-Cabal-Version:    >=1.2
+Cabal-Version:    >=1.8
+
+
+Library
+    exposed-modules:
+        NetLion.Packets,
+        NetLion.Packets.Writer,
+        NetLion.Packets.Parser,
+        NetLion.Packets.Serialize,
+        NetLion.Common,
+        NetLion.Server,
+        NetLion.Server.Actions
+
+    Hs-Source-Dirs: src/
+    Build-Depends:    base >= 3,
+        network >= 2.4,
+        bytestring >= 0.10,
+        cereal >= 0.3,
+        containers >= 0.5
 
 Executable nlc
     GHC-Options:    -Wall
@@ -16,18 +34,22 @@ Executable nlc
         network >= 2.4,
         bytestring >= 0.10,
         cereal >= 0.3,
-        containers >= 0.5
+        containers >= 0.5,
+        NetLion >= 0.5
+    Hs-Source-Dirs: client/
 
 Executable nlsd
     GHC-Options:    -Wall
     extensions:    DoAndIfThenElse
-    Main-is:        Main.hs
+    Main-is:        Server.hs
     Build-Depends:    base >= 3,
         network >= 2.4,
         bytestring >= 0.10,
         cereal >= 0.3,
         containers >= 0.5,
-        BoundedChan >= 1.0
+        BoundedChan >= 1.0,
+        NetLion >= 0.5
+    Hs-Source-Dirs: server/
 
 Executable nlcd
     GHC-Options:    -Wall
@@ -37,4 +59,7 @@ Executable nlcd
         network >= 2.4,
         bytestring >= 0.10,
         cereal >= 0.3,
-        containers >= 0.5
+        containers >= 0.5,
+        BoundedChan >= 1.0,
+        NetLion >= 0.5
+    Hs-Source-Dirs: daemon/
