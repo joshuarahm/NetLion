@@ -19,7 +19,7 @@ Library
         NetLion.Server,
         NetLion.Server.Actions
 
-    Hs-Source-Dirs: src/
+    Hs-Source-Dirs: src/NetLion
     Build-Depends:    base >= 3,
         network >= 2.4,
         bytestring >= 0.10,
@@ -36,7 +36,7 @@ Executable nlc
         cereal >= 0.3,
         containers >= 0.5,
         NetLion >= 0.5
-    Hs-Source-Dirs: client/
+    Hs-Source-Dirs: src/client/
 
 Executable nlsd
     GHC-Options:    -Wall
@@ -49,7 +49,7 @@ Executable nlsd
         containers >= 0.5,
         BoundedChan >= 1.0,
         NetLion >= 0.5
-    Hs-Source-Dirs: server/
+    Hs-Source-Dirs: src/server/
 
 Executable nlcd
     GHC-Options:    -Wall
@@ -62,4 +62,4 @@ Executable nlcd
         containers >= 0.5,
         BoundedChan >= 1.0,
         NetLion >= 0.5
-    Hs-Source-Dirs: daemon/
+    Hs-Source-Dirs: src/daemon/
