@@ -7,6 +7,9 @@
 	to Y, Y's daemon will store m in the queue mapped to X for later
 	retrieval. -}
 module Main where
+	import Backlog
+	import ChannelHandler
+
 	import NetLion.Common
 	import NetLion.Packets
 	import NetLion.Packets.Serialize
@@ -14,8 +17,6 @@ module Main where
 	import Network
 
 	import Control.Concurrent (forkIO)
-	import Control.Concurrent.BoundedChan
-	import Control.Concurrent.MVar
 	import Control.Monad
 
 	import qualified Data.ByteString as BS
@@ -26,6 +27,7 @@ module Main where
 	import Debug.Trace
 
 	import System.Environment
+	import Control.Concurrent.BoundedChan
 
 	{- Some default values -}
 	
@@ -39,56 +41,6 @@ module Main where
 		in -}
 	blockSize :: (Integral a) => a
 	blockSize = 1024
-
-	{- The maximum number of data packets to
-		retain in a user's queue without
-		blocking. This is set to a megabyte per
-		user -}
-	maxBacklog :: (Integral a) => a
-	maxBacklog = 1024
-
-
-	{- A mutable data structure that holds the queue's for
-		each contact as well as a queue to post information
-		to the server on and a user name to register to the
-		server with -}
-	data Backlog = Backlog
-		(MVar ( Map.Map String (BoundedChan BS.ByteString )))
-		(BoundedChan Packet) String
-
-	{- Creates a new Backlog with a username -}
-	newBacklog :: String -> IO Backlog
-	newBacklog name = do
-		-- create new mutable variables
-		mvar <- newMVar Map.empty
-		-- this is for the server writes
-		bc <- newBoundedChan maxBacklog
-		return (Backlog mvar bc name)
-
-	appendToBacklog :: String -> BS.ByteString -> Backlog -> IO ()
-	appendToBacklog clid dat (Backlog mvar _ _) =
-		trace ("Appending data to backlog: clid=" ++ clid ++ " dat=" ++ (show dat)) $
-
-		{- To append to the backlog, we need
-			to modify the mutable variable for the Map -}
-		modifyMVar_ mvar (\m ->
-			{- Check to see if there is already
-				a channel for the client id -}
-			case Map.lookup clid m of
-				Just chan -> do
-					{- if there is, then we can
-						just write to that channel -}
-					writeChan chan dat
-					return m
-				Nothing -> do
-					{- if not, then we have to explicitly
-						go through and create a new channel
-						and map it to that client id -}
-					chan <- newBoundedChan maxBacklog
-					writeChan chan dat
-					return $ Map.insert clid chan m)
-
-
 
 	{- This function will read a data packet from
 		the server. And will append it to a backlog -}
@@ -115,25 +67,6 @@ module Main where
 		trace ("Forwarding packet " ++ (show packet)) $
 			writePacket handleToServer packet
 
-	backlogGetChan :: String -> Backlog -> IO (Maybe (BoundedChan BS.ByteString))
-	backlogGetChan clid (Backlog mvar _ _ ) =
-		withMVar mvar (\clmap -> return (Map.lookup clid clmap) )
-
-	dumpChannelUntil :: (BS.ByteString -> Bool) -> BoundedChan BS.ByteString-> Handle -> IO ()
-	dumpChannelUntil cond chan handle = do
-		putStrLn $ "Trying to figure out if handle is closed"
-		iseof <- hIsClosed handle
-		putStrLn $ "Handle closed? " ++ (show iseof)
-		isempty <- isEmptyChan chan
-		if iseof || isempty then trace "Handle is EOF!" $ return ()
-		else do
-			putStrLn $ "Reading channel"
-			bs <- readChan chan
-			putStrLn $ "Read ByteString " ++ (show bs) ++ " from channel"
-			if (cond bs) then return ()
-			else do
-				BS.hPutStr handle bs
-				dumpChannelUntil cond chan handle
 
 	handleReadReq :: String -> Handle -> Backlog -> Bool -> IO ()
 	handleReadReq clid handle bl _ = do
@@ -141,18 +74,21 @@ module Main where
 		case maychan of
 			-- dump a channel until the length of a bytestring is 0
 			Just chan -> do
-				putStrLn "Dumping channel to handle"
-				dumpChannelUntil (\_ -> False) chan handle
-				putStrLn "Condition met, finishing"
+				flushChannel chan handle ()
 			Nothing -> return ()
 
 	handleWriteReq :: [String] -> Handle -> Backlog -> IO ()
-	handleWriteReq clients handle bl@(Backlog _ buf name) = 
-		trace "Handling write request" $ do
+	handleWriteReq clients handle bl@(Backlog _ buf name) = do
+		-- read in a block of bytes. This should be one kilobyte
 		bytes <- BS.hGetSome handle blockSize
+
+		-- create a new broadcast packet
 		let packet = (BroadcastPacket name clients bytes)
-		trace ("writing packet " ++ (show packet)) $
-			writeChan buf packet
+		
+		-- write the packet to the server channel
+		writeChan buf packet
+
+		-- If the length is 0, then we're done here
 		if BS.length bytes == 0 then return ()
 		else handleWriteReq clients handle bl
 
